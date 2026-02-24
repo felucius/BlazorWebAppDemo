@@ -9,6 +9,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddScoped<ExerciseProgramServices>();
 builder.Services.AddScoped<ExerciseServices>();
+builder.Services.AddScoped<PersonServices>();
 
 var app = builder.Build();
 
