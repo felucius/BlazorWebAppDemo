@@ -1,10 +1,13 @@
 using BlazorWebAppDemo.Components;
+using BlazorWebAppDemo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddScoped<PersonServices>();
 
 var app = builder.Build();
 
