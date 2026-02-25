@@ -2,6 +2,9 @@
   <Folder Name="/infra/">
     <File Path="main.bicep" />
   </Folder>
+  <Folder Name="/infrastructure/">
+    <File Path="azure-pipelines.yml" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path="azure-pipelines.yml" />
   </Folder>

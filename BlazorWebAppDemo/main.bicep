@@ -1,14 +1,14 @@
-// 1. PARAMETERS (Deze worden aangestuurd vanuit je YAML pipeline)
+// 1. PARAMETERS
 @description('De naam van de Web App (moet globaal uniek zijn in Azure)')
 param webAppName string
 
 @description('De Azure regio waar de resources worden geplaatst')
 param location string = resourceGroup().location
 
-// 2. VARIABELEN (Interne namen voor overzicht)
+// 2. VARIABELEN
 var appServicePlanName = 'asp-${webAppName}'
 
-// 3. RESOURCE: App Service Plan (De "Hardware" / Server)
+// 3. RESOURCE: App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: appServicePlanName
   location: location
