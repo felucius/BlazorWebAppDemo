@@ -22,7 +22,7 @@ stages:
     - task: UseDotNet@2
       displayName: 'Install .NET SDK'
       inputs:
-        version: '8.x'
+        version: '10.x'
 
     # 2. Bouw en Publiceer de Blazor Web App
     - task: DotNetCoreCLI@2
