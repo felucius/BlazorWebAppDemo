@@ -1,0 +1,52 @@
+﻿@page "/exerciseprogram"
+@using BlazorWebAppDemo.Models
+@using BlazorWebAppDemo.Services
+@inject ExerciseProgramServices ExerciseProgramService
+
+<h3>ExerciseProgram</h3>
+
+
+@if (exercisePrograms == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Exercise program</th>
+                <th>Description</th>
+                <th>Exercises</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var exerciseProgram in exercisePrograms)
+            {
+                <tr>
+                    <td>@exerciseProgram.Name</td>
+                    <td>@exerciseProgram.Description</td>
+                    @if(exerciseProgram.Exercises is not null && exerciseProgram.Exercises.Count() > 0)
+                    {
+                        @foreach (var exercise in exerciseProgram?.Exercises)
+                        {
+                            <td>@exercise.Name</td>
+                        }
+                    }
+                    else
+                    {
+                        <td>No exercises found</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ExerciseProgram>? exercisePrograms;
+    protected override async Task OnInitializedAsync()
+    {
+        exercisePrograms = ExerciseProgramService.GetExercisePrograms();
+    }
+}
