@@ -77,7 +77,6 @@ stages:
               deploymentMode: 'Incremental'
 
           # 2. Deploy de Blazor code naar de zojuist gemaakte Web App
-          - task: AzureWebAppDeployment@4
             displayName: 'Deploy Blazor App to Azure'
             inputs:
               azureSubscription: $(azureServiceConnection)
