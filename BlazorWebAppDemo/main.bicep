@@ -30,7 +30,7 @@ resource webApp 'Microsoft.Web/sites@2022-03-01' = {
     serverFarmId: appServicePlan.id
     httpsOnly: true      // Forceer HTTPS (best practice)
     siteConfig: {
-      netFrameworkVersion: 'v8.0' // Specifiek voor .NET 8 (Blazor)
+      netFrameworkVersion: 'v10.0' // Specifiek voor .NET 10 (Blazor)
       alwaysOn: false             // Moet 'false' zijn op de Free tier
       ftpsState: 'FtpsOnly'
     }
