@@ -1,0 +1,56 @@
+﻿@page "/profiles"
+@using BlazorWebAppDemo.Models
+@using BlazorWebAppDemo.Services
+@inject PersonServices ProfileServices
+
+<h3>Person</h3>
+
+@if(Persons == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Exercise programs</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var person in Persons)
+            {
+                <tr>
+                    <td>@person.Name</td>
+                    <td>@person.Age</td>
+                    @if(person.ExercisePrograms != null && person.ExercisePrograms.Count() > 0)
+                    {
+                        <td>
+                            <ul>
+                                @foreach (var program in person.ExercisePrograms)
+                                {
+                                    <li>@program.Name</li>
+                                }
+                            </ul>
+                        </td>
+                    }
+                    else
+                    {
+                        <td>No exercise programs</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Person>? Persons;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Persons = ProfileServices.GetPersons();
+    }
+}
