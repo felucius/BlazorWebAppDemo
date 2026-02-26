@@ -5,54 +5,31 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # Connections - Create these in Azure DevOps Project Settings > Service Connections
   azureServiceConnection: 'WebAppDemoServiceConnection'
-  dockerRegistryServiceConnection: 'MyACRServiceConnection' 
-  
-  # Configuration
-  containerRegistry: 'blazordemoappfontys.azurecr.io'
-  imageRepository: 'blazor-app'
   resourceGroupName: 'rg-blazor-demo-prod'
   location: 'westeurope'
   webAppName: 'webapp-blazor-unique-123'
-  tag: '$(Build.BuildId)'
 
 stages:
+# --- STAGE 1: BUILD (CI) ---
 - stage: Build
-  displayName: 'Build Artifacts and Container'
+  displayName: 'Bouw Blazor App en kopieer Infra'
   jobs:
   - job: BuildJob
     steps:
-    # --- Part A: Build for App Service (Traditional ZIP) ---
     - task: UseDotNet@2
       displayName: 'Install .NET 10 SDK'
       inputs:
         version: '10.x'
 
     - task: DotNetCoreCLI@2
-      displayName: 'Dotnet Publish (ZIP)'
+      displayName: 'Dotnet Publish'
       inputs:
         command: 'publish'
         publishWebProjects: true
         arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/app'
-        zipAfterPublish: true 
+        zipAfterPublish: false 
 
-    # --- Part B: Build & Push for Azure Container Registry ---
-    - task: Docker@2
-      displayName: 'Build and Push to ACR'
-      inputs:
-        command: buildAndPush
-        containerRegistry: $(dockerRegistryServiceConnection)
-        repository: $(imageRepository)
-        # Pas dit pad aan naar de submap waar de Dockerfile echt staat:
-        dockerfile: '$(Build.SourcesDirectory)/BlazorWebAppDemo/BlazorWebAppDemo/Dockerfile'
-        # De context moet ook naar die map wijzen om de bestanden te kunnen kopiëren
-        buildContext: '$(Build.SourcesDirectory)/BlazorWebAppDemo/BlazorWebAppDemo'
-        tags: |
-          $(tag)
-          latest
-
-    # --- Part C: Prepare Infrastructure ---
     - task: CopyFiles@2
       displayName: 'Copy Bicep templates'
       inputs:
@@ -62,10 +39,13 @@ stages:
 
     - publish: $(Build.ArtifactStagingDirectory)
       artifact: drop
+      displayName: 'Publish Artifact'
 
+# --- STAGE 2: DEPLOY (CD) ---
 - stage: Deploy
-  displayName: 'Deploy to Azure'
+  displayName: 'Infrastructuur en App uitrollen'
   dependsOn: Build
+  condition: succeeded()
   jobs:
   - deployment: DeployJob
     environment: 'production'
@@ -76,21 +56,22 @@ stages:
           - download: current
             artifact: drop
 
-          # 1. Deploy Infrastructure (Bicep)
           - task: AzureResourceManagerTemplateDeployment@3
-            displayName: 'Deploy Bicep'
+            displayName: 'Deploy Azure Infrastructure (Bicep)'
             inputs:
+              deploymentScope: 'Resource Group'
               azureResourceManagerConnection: $(azureServiceConnection)
+              action: 'Create Or Update Resource Group'
               resourceGroupName: $(resourceGroupName)
               location: $(location)
+              templateLocation: 'Linked artifact'
               csmFile: '$(Pipeline.Workspace)/drop/infra/main.bicep'
-              # Note: Added imageTag parameter for your Container App Bicep
-              overrideParameters: '-webAppName $(webAppName) -location $(location) -imageTag $(tag)'
+              overrideParameters: '-webAppName $(webAppName) -location $(location)'
+              deploymentMode: 'Incremental'
 
-          # 2. Deploy to App Service
           - task: AzureRmWebAppDeployment@4
-            displayName: 'Deploy to App Service'
+            displayName: 'Deploy Blazor App to Azure'
             inputs:
               azureSubscription: $(azureServiceConnection)
               WebAppName: $(webAppName)
-              Package: '$(Pipeline.Workspace)/drop/app/**/*.zip'
+              Package: '$(Pipeline.Workspace)/drop/app/BlazorWebAppDemo'
