@@ -5,39 +5,39 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # Connections
+  # Connections - Create these in Azure DevOps Project Settings > Service Connections
   azureServiceConnection: 'WebAppDemoServiceConnection'
-  dockerRegistryServiceConnection: 'MyACRServiceConnection' # Must create this in Project Settings
+  dockerRegistryServiceConnection: 'MyACRServiceConnection' 
   
-  # ACR Variables
+  # Configuration
   containerRegistry: 'blazordemoappfontys.azurecr.io'
   imageRepository: 'blazor-app'
-  tag: '$(Build.BuildId)'
-  
-  # App Service Variables
   resourceGroupName: 'rg-blazor-demo-prod'
   location: 'westeurope'
   webAppName: 'webapp-blazor-unique-123'
+  tag: '$(Build.BuildId)'
 
 stages:
 - stage: Build
-  displayName: 'Build App Service Artifact & Container Image'
+  displayName: 'Build Artifacts and Container'
   jobs:
   - job: BuildJob
     steps:
-    # --- Part A: For App Service Plan ---
+    # --- Part A: Build for App Service (Traditional ZIP) ---
     - task: UseDotNet@2
-      inputs: { version: '10.x' }
+      displayName: 'Install .NET 10 SDK'
+      inputs:
+        version: '10.x'
 
     - task: DotNetCoreCLI@2
-      displayName: 'Publish for App Service (Zip)'
+      displayName: 'Dotnet Publish (ZIP)'
       inputs:
         command: 'publish'
         publishWebProjects: true
         arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/app'
-        zipAfterPublish: true # Required for AzureRmWebAppDeployment
+        zipAfterPublish: true 
 
-    # --- Part B: For Container Registry ---
+    # --- Part B: Build & Push for Azure Container Registry ---
     - task: Docker@2
       displayName: 'Build and Push to ACR'
       inputs:
@@ -45,12 +45,14 @@ stages:
         containerRegistry: $(dockerRegistryServiceConnection)
         repository: $(imageRepository)
         dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+        buildContext: '$(Build.SourcesDirectory)'
         tags: |
           $(tag)
           latest
 
-    # --- Part C: Infrastructure & Artifacts ---
+    # --- Part C: Prepare Infrastructure ---
     - task: CopyFiles@2
+      displayName: 'Copy Bicep templates'
       inputs:
         SourceFolder: 'infra'
         Contents: '**'
@@ -60,7 +62,7 @@ stages:
       artifact: drop
 
 - stage: Deploy
-  displayName: 'Deploy Both'
+  displayName: 'Deploy to Azure'
   dependsOn: Build
   jobs:
   - deployment: DeployJob
@@ -74,15 +76,18 @@ stages:
 
           # 1. Deploy Infrastructure (Bicep)
           - task: AzureResourceManagerTemplateDeployment@3
+            displayName: 'Deploy Bicep'
             inputs:
               azureResourceManagerConnection: $(azureServiceConnection)
               resourceGroupName: $(resourceGroupName)
               location: $(location)
               csmFile: '$(Pipeline.Workspace)/drop/infra/main.bicep'
-              overrideParameters: '-webAppName $(webAppName) -location $(location)'
+              # Note: Added imageTag parameter for your Container App Bicep
+              overrideParameters: '-webAppName $(webAppName) -location $(location) -imageTag $(tag)'
 
-          # 2. Deploy to Standard App Service (Zip)
+          # 2. Deploy to App Service
           - task: AzureRmWebAppDeployment@4
+            displayName: 'Deploy to App Service'
             inputs:
               azureSubscription: $(azureServiceConnection)
               WebAppName: $(webAppName)
