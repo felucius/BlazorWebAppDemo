@@ -9,29 +9,52 @@ variables:
   resourceGroupName: 'rg-blazor-demo-prod'
   location: 'westeurope'
   webAppName: 'webapp-blazor-unique-123'
+  containerImageName: 'blazor-demo-app'
 
 stages:
-# --- STAGE 1: BUILD (CI) ---
+# --- STAGE 1: BUILD ---
 - stage: Build
-  displayName: 'Bouw Blazor App en kopieer Infra'
+  displayName: 'Build App & Container'
   jobs:
   - job: BuildJob
     steps:
     - task: UseDotNet@2
-      displayName: 'Install .NET 10 SDK'
       inputs:
         version: '10.x'
 
+    # 1. Build voor App Service (ZIP)
     - task: DotNetCoreCLI@2
-      displayName: 'Dotnet Publish'
+      displayName: 'Publish for App Service'
       inputs:
         command: 'publish'
         publishWebProjects: true
         arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/app'
-        zipAfterPublish: false 
+        zipAfterPublish: true 
+
+    # 2. Haal dynamisch de ACR naam op uit de Resource Group
+    - task: AzureCLI@2
+      displayName: 'Get ACR Name'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          ACR_NAME=$(az acr list --resource-group $(resourceGroupName) --query "[0].name" -o tsv)
+          echo "##vso[task.setvariable variable=acrName]$ACR_NAME"
+
+    # 3. Build & Push Docker Image (Context is root van de repo)
+    - task: Docker@2
+      displayName: 'Build and Push to ACR'
+      inputs:
+        command: 'buildAndPush'
+        containerRegistry: $(azureServiceConnection)
+        repository: $(containerImageName)
+        dockerfile: '**/Dockerfile'
+        tags: |
+          $(Build.BuildId)
+          latest
 
     - task: CopyFiles@2
-      displayName: 'Copy Bicep templates'
       inputs:
         SourceFolder: 'infra'
         Contents: '**'
@@ -39,13 +62,11 @@ stages:
 
     - publish: $(Build.ArtifactStagingDirectory)
       artifact: drop
-      displayName: 'Publish Artifact'
 
-# --- STAGE 2: DEPLOY (CD) ---
+# --- STAGE 2: DEPLOY ---
 - stage: Deploy
-  displayName: 'Infrastructuur en App uitrollen'
+  displayName: 'Deploy to Azure'
   dependsOn: Build
-  condition: succeeded()
   jobs:
   - deployment: DeployJob
     environment: 'production'
@@ -56,8 +77,9 @@ stages:
           - download: current
             artifact: drop
 
+          # 1. Infrastructuur Update
           - task: AzureResourceManagerTemplateDeployment@3
-            displayName: 'Deploy Azure Infrastructure (Bicep)'
+            displayName: 'Deploy Bicep (Both Apps)'
             inputs:
               deploymentScope: 'Resource Group'
               azureResourceManagerConnection: $(azureServiceConnection)
@@ -66,12 +88,25 @@ stages:
               location: $(location)
               templateLocation: 'Linked artifact'
               csmFile: '$(Pipeline.Workspace)/drop/infra/main.bicep'
-              overrideParameters: '-webAppName $(webAppName) -location $(location)'
+              overrideParameters: >
+                -webAppName $(webAppName) 
+                -location $(location) 
+                -containerImage $(acrName).azurecr.io/$(containerImageName):$(Build.BuildId)
               deploymentMode: 'Incremental'
 
+          # 2. Deploy naar App Service
           - task: AzureRmWebAppDeployment@4
-            displayName: 'Deploy Blazor App to Azure'
+            displayName: 'Deploy to Web App'
             inputs:
               azureSubscription: $(azureServiceConnection)
               WebAppName: $(webAppName)
-              Package: '$(Pipeline.Workspace)/drop/app/BlazorWebAppDemo'
+              Package: '$(Pipeline.Workspace)/drop/app/**/*.zip'
+
+          # 3. Deploy naar Container App
+          - task: AzureContainerApps@1
+            displayName: 'Update Container App'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              containerAppName: $(webAppName)-aca
+              resourceGroup: $(resourceGroupName)
+              imageToDeploy: '$(acrName).azurecr.io/$(containerImageName):$(Build.BuildId)'
