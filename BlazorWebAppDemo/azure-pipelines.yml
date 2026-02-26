@@ -44,8 +44,10 @@ stages:
         command: buildAndPush
         containerRegistry: $(dockerRegistryServiceConnection)
         repository: $(imageRepository)
-        dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
-        buildContext: '$(Build.SourcesDirectory)'
+        # Pas dit pad aan naar de submap waar de Dockerfile echt staat:
+        dockerfile: '$(Build.SourcesDirectory)/BlazorWebAppDemo/BlazorWebAppDemo/Dockerfile'
+        # De context moet ook naar die map wijzen om de bestanden te kunnen kopiëren
+        buildContext: '$(Build.SourcesDirectory)/BlazorWebAppDemo/BlazorWebAppDemo'
         tags: |
           $(tag)
           latest
