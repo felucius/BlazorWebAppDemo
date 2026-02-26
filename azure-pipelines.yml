@@ -74,4 +74,4 @@ stages:
             inputs:
               azureSubscription: $(azureServiceConnection)
               WebAppName: $(webAppName)
-              Package: '$(Pipeline.Workspace)/drop/app'
+              Package: '$(Pipeline.Workspace)/drop/app/BlazorWebAppDemo'
